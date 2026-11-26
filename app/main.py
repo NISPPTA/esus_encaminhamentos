@@ -14,14 +14,10 @@ from psycopg_pool import ConnectionPool
 
 from app.config import get_settings
 from app.db import close_pool, create_pool, get_db_pool, open_pool
-from app.repositories.encaminhamentos_repo import EncaminhamentosRepository
-from app.repositories.especialidades_repo import (
-    EspecialidadesRepository,
-    RepositoryQueryError,
-)
+from app.repositories.especialidades_repo import RepositoryQueryError
 from app.services.relatorio_service import (
     FiltroEspecialidadeInvalidoError,
-    RelatorioService,
+    carregar_painel,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -43,34 +39,24 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="e-SUS PEC — Painel de Encaminhamentos e Atendimentos",
-    version="0.1.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
-
-
-def get_relatorio_service(
-    pool: Annotated[ConnectionPool[Connection[DictRow]], Depends(get_db_pool)],
-) -> RelatorioService:
-    """Injeta repositórios e serviço por requisição."""
-    return RelatorioService(
-        especialidades_repo=EspecialidadesRepository(pool),
-        encaminhamentos_repo=EncaminhamentosRepository(pool),
-    )
 
 
 @app.get("/", response_class=HTMLResponse)
 def exibir_encaminhamentos(
     request: Request,
-    service: Annotated[RelatorioService, Depends(get_relatorio_service)],
+    pool: Annotated[ConnectionPool[Connection[DictRow]], Depends(get_db_pool)],
     especialidade: Annotated[str | None, Query(max_length=64)] = None,
 ) -> HTMLResponse:
     """Renderiza o painel com dropdown dinâmico de todas as especialidades do banco."""
     try:
-        painel = service.carregar_painel(especialidade)
+        painel = carregar_painel(pool, especialidade)
     except FiltroEspecialidadeInvalidoError as exc:
         mensagem_erro = str(exc)
         try:
-            painel_fallback = service.carregar_painel(None)
+            painel_fallback = carregar_painel(pool, None)
         except RepositoryQueryError as db_exc:
             return templates.TemplateResponse(
                 request=request,
