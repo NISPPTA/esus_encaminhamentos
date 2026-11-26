@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.26.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "esus-encaminhamentos"
+version = "0.1.0"
+description = "Painel modular de encaminhamentos e atendimentos do e-SUS PEC"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "jinja2>=3.1.4",
+    "psycopg[binary,pool]>=3.2.3",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.1",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "pytest>=8.3.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["app"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle (erros)
+    "W",     # pycodestyle (avisos)
+    "F",     # Pyflakes
+    "I",     # isort (ordenação de imports)
+    "N",     # pep8-naming
+    "UP",    # pyupgrade (sintaxe nativa Python 3.13)
+    "B",     # flake8-bugbear
+    "BLE",   # flake8-blind-except (proíbe 'except Exception:' genérico)
+    "C4",    # flake8-comprehensions
+    "DTZ",   # flake8-datetimez
+    "T20",   # flake8-print (proíbe print() solto)
+    "SIM",   # flake8-simplify
+    "ARG",   # flake8-unused-arguments
+    "PTH",   # flake8-use-pathlib
+    "TRY",   # tryceratops (boas práticas em try/except)
+    "RUF",   # regras nativas do Ruff
+    "S",     # flake8-bandit (segurança e SQL injection)
+]
+ignore = [
+    "TRY003", # permite mensagens descritivas diretas em exceções customizadas
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true
