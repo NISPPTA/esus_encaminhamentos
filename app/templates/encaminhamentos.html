@@ -23,7 +23,7 @@
       padding: 2rem 1rem;
     }
     .container {
-      max-width: 1020px;
+      max-width: 1100px;
       margin: 0 auto;
     }
     header {
@@ -39,12 +39,22 @@
       color: var(--muted);
       font-size: 0.95rem;
     }
+    .context-banner {
+      background: #eef5fc;
+      border: 1px solid #bfd7ef;
+      color: #0b3961;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
     .filter-box {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.25rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
       display: flex;
       flex-wrap: wrap;
       gap: 0.75rem;
@@ -86,14 +96,19 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 1rem;
     }
     .card {
+      position: relative;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.25rem;
+      transition: border-color 0.15s ease;
+    }
+    .card:hover {
+      border-color: var(--primary);
     }
     .card h2 {
       margin: 0 0 0.5rem 0;
@@ -108,9 +123,39 @@
       margin: 0.25rem 0;
     }
     .hint {
-      font-size: 0.82rem;
+      font-size: 0.83rem;
       color: var(--muted);
       margin: 0;
+      line-height: 1.45;
+    }
+    .tooltip-balloon {
+      display: none;
+      position: absolute;
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: calc(100% + 8px);
+      background: #111827;
+      color: #f9fafb;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      padding: 0.75rem 0.9rem;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22);
+      z-index: 20;
+      pointer-events: none;
+    }
+    .tooltip-balloon::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 1.5rem;
+      border-width: 6px;
+      border-style: solid;
+      border-color: #111827 transparent transparent transparent;
+    }
+    .card:hover .tooltip-balloon,
+    .card:focus-within .tooltip-balloon {
+      display: block;
     }
   </style>
 </head>
@@ -119,7 +164,7 @@
     <header>
       <h1>Painel de Encaminhamentos e Atendimentos — e-SUS PEC</h1>
       <p class="subtitle">
-        Consulta unificada em PostgreSQL 18 (camadas transacional e analítica)
+        PostgreSQL 18.7 • Camadas transacional e analítica com LEFT JOIN e sem omissão de registros
       </p>
     </header>
 
@@ -128,6 +173,9 @@
     {% endif %}
 
     {% if painel %}
+      {% set m = painel.metricas %}
+      {% set sel = painel.selecionada %}
+
       <form class="filter-box" method="get" action="/">
         <div class="field">
           <label for="especialidade">Especialidade cadastrada no banco:</label>
@@ -136,7 +184,7 @@
             {% for item in painel.especialidades %}
               <option
                 value="{{ item.chave_filtro }}"
-                {% if painel.selecionada and painel.selecionada.chave_filtro == item.chave_filtro %}selected{% endif %}
+                {% if sel and sel.chave_filtro == item.chave_filtro %}selected{% endif %}
               >
                 {{ item.nome_exibicao }}
                 [{{ item.origem | upper }}{% if item.nu_cbo %} • CBO {{ item.nu_cbo }}{% endif %}]
@@ -147,47 +195,146 @@
         <button type="submit">Consultar</button>
       </form>
 
+      <div class="context-banner">
+        {% if sel %}
+          <strong>Especialidade de destino:</strong> encaminhamento para
+          <strong>{{ m.nome_especialidade_alvo }}</strong> (origem <code>{{ sel.origem | upper }}</code>)
+          {% if m.cbo_associado %}
+            • <strong>Profissional / CBO:</strong> CBO <code>{{ m.cbo_associado }}</code>
+            {% if m.nome_cbo_associado %}— <strong>{{ m.nome_cbo_associado }}</strong>{% endif %}
+          {% else %}
+            • <strong>Profissional / CBO:</strong> não vinculado diretamente a esta origem
+          {% endif %}
+        {% else %}
+          <strong>Visão geral:</strong> todos os registros das tabelas consultadas no banco, sem exclusão por status.
+        {% endif %}
+      </div>
+
       <section class="grid">
-        <article class="card">
-          <h2>Encaminhamentos (Transacional • SISREG)</h2>
-          <p class="metric">{{ painel.metricas.encaminhamentos_transacional }}</p>
-          <p class="hint">Tabela <code>tb_encaminhamento</code></p>
-        </article>
-
-        <article class="card">
-          <h2>Encaminhamentos para a Especialidade (Analítico)</h2>
-          <p class="metric">{{ painel.metricas.encaminhamentos_analitico_destino }}</p>
-          <p class="hint">Tabela <code>tb_fat_atd_ind_encaminhamentos</code></p>
-        </article>
-
-        <article class="card">
-          <h2>Guias de Encaminhamento (e-SUS Reg)</h2>
-          <p class="metric">{{ painel.metricas.guias_esus_reg }}</p>
-          <p class="hint">Tabela <code>tb_guia_encaminhamento</code></p>
-        </article>
-
-        <article class="card">
-          <h2>Encaminhamentos Emitidos pelo CBO Associado</h2>
-          <p class="metric">{{ painel.metricas.encaminhamentos_emitidos_pelo_cbo }}</p>
+        <article
+          class="card"
+          tabindex="0"
+          title="Encaminhamentos transacionais (tb_encaminhamento) encaminhados para {{ m.nome_especialidade_alvo }}."
+        >
+          <div class="tooltip-balloon">
+            <strong>Legenda:</strong> conta <code>co_seq_encaminhamento</code> distintos em
+            <code>tb_encaminhamento</code> com <code>LEFT JOIN</code> em
+            <code>tb_especialidade_sisreg</code> para encaminhamento direcionado a
+            <strong>{{ m.nome_especialidade_alvo }}</strong>.
+          </div>
+          <h2>Encaminhamento para {{ m.nome_especialidade_alvo }} (Transacional)</h2>
+          <p class="metric">{{ m.encaminhamentos_transacional }}</p>
           <p class="hint">
-            {% if painel.metricas.cbo_associado %}
-              Profissionais com CBO <code>{{ painel.metricas.cbo_associado }}</code>
+            Tabela <code>tb_encaminhamento</code> • Encaminhado para
+            <strong>{{ m.nome_especialidade_alvo }}</strong>
+          </p>
+        </article>
+
+        <article
+          class="card"
+          tabindex="0"
+          title="Encaminhamentos analíticos (tb_fat_atd_ind_encaminhamentos) encaminhados para {{ m.nome_especialidade_alvo }}."
+        >
+          <div class="tooltip-balloon">
+            <strong>Legenda:</strong> conta <code>co_seq_fat_atd_ind_encaminham</code> distintos em
+            <code>tb_fat_atd_ind_encaminhamentos</code> com <code>LEFT JOIN</code> em
+            <code>tb_dim_especialidade</code> para especialidade de destino
+            <strong>{{ m.nome_especialidade_alvo }}</strong>.
+          </div>
+          <h2>Encaminhado para {{ m.nome_especialidade_alvo }} (Analítico)</h2>
+          <p class="metric">{{ m.encaminhamentos_analitico_destino }}</p>
+          <p class="hint">
+            Tabela <code>tb_fat_atd_ind_encaminhamentos</code> • Encaminhado para
+            <strong>{{ m.nome_especialidade_alvo }}</strong>
+          </p>
+        </article>
+
+        <article
+          class="card"
+          tabindex="0"
+          title="Guias de encaminhamento (tb_guia_encaminhamento) associadas a {{ m.nome_especialidade_alvo }}."
+        >
+          <div class="tooltip-balloon">
+            <strong>Legenda:</strong> conta <code>co_seq_encaminhamento</code> distintos em
+            <code>tb_guia_encaminhamento</code> com <code>LEFT JOIN</code> em
+            <code>tb_especialidades_esus_reg</code> para <strong>{{ m.nome_especialidade_alvo }}</strong>.
+          </div>
+          <h2>Guias de Encaminhamento (e-SUS Reg)</h2>
+          <p class="metric">{{ m.guias_esus_reg }}</p>
+          <p class="hint">
+            Tabela <code>tb_guia_encaminhamento</code> • Especialidade:
+            <strong>{{ m.nome_especialidade_alvo }}</strong>
+          </p>
+        </article>
+
+        <article
+          class="card"
+          tabindex="0"
+          title="Encaminhamentos emitidos pelo profissional com o CBO associado."
+        >
+          <div class="tooltip-balloon">
+            <strong>Legenda:</strong> conta <code>co_seq_fat_atd_ind_encaminham</code> distintos em
+            <code>tb_fat_atd_ind_encaminhamentos</code> com <code>LEFT JOIN</code> em
+            <code>tb_dim_cbo</code> (<code>co_dim_cbo_1</code> ou <code>co_dim_cbo_guia_encaminhamento</code>)
+            para o profissional do CBO vinculado.
+          </div>
+          <h2>Encaminhamentos Emitidos pelo Profissional (CBO)</h2>
+          <p class="metric">{{ m.encaminhamentos_emitidos_pelo_cbo }}</p>
+          <p class="hint">
+            {% if m.cbo_associado %}
+              Profissional CBO <code>{{ m.cbo_associado }}</code>
+              {% if m.nome_cbo_associado %}— <strong>{{ m.nome_cbo_associado }}</strong>{% endif %}
             {% else %}
-              Disponível quando a especialidade possui CBO vinculado
+              Sem CBO vinculado diretamente à origem selecionada
             {% endif %}
           </p>
         </article>
 
-        <article class="card">
-          <h2>Atendimentos Distintos pelo CBO (Transacional)</h2>
-          <p class="metric">{{ painel.metricas.atendimentos_transacional_cbo }}</p>
-          <p class="hint">Tabela <code>tb_atend_prof</code> (não cancelados e lotação ativa)</p>
+        <article
+          class="card"
+          tabindex="0"
+          title="Atendimentos distintos na camada transacional ligados ao CBO do profissional."
+        >
+          <div class="tooltip-balloon">
+            <strong>Legenda:</strong> conta <code>co_atend</code> distintos em
+            <code>tb_atend_prof</code> com <code>LEFT JOIN</code> em <code>tb_lotacao</code> para
+            o CBO do profissional, sem filtrar status de cancelamento ou desativação.
+          </div>
+          <h2>Atendimentos do Profissional por CBO (Transacional)</h2>
+          <p class="metric">{{ m.atendimentos_transacional_cbo }}</p>
+          <p class="hint">
+            Tabela <code>tb_atend_prof</code> •
+            {% if m.cbo_associado %}
+              Profissional CBO <code>{{ m.cbo_associado }}</code>
+              {% if m.nome_cbo_associado %}({{ m.nome_cbo_associado }}){% endif %}
+            {% else %}
+              Todos os profissionais/lotações
+            {% endif %}
+          </p>
         </article>
 
-        <article class="card">
+        <article
+          class="card"
+          tabindex="0"
+          title="Fichas de atendimento individual distintas na camada analítica ligadas ao CBO."
+        >
+          <div class="tooltip-balloon">
+            <strong>Legenda:</strong> conta <code>nu_uuid_ficha</code> distintos em
+            <code>tb_fat_atendimento_individual</code> com <code>LEFT JOIN</code> em
+            <code>tb_dim_cbo</code> (<code>co_dim_cbo_1</code> ou <code>co_dim_cbo_2</code>)
+            para o CBO do profissional.
+          </div>
           <h2>Fichas de Atendimento Individual (Analítico)</h2>
-          <p class="metric">{{ painel.metricas.atendimentos_analitico_cbo }}</p>
-          <p class="hint">Tabela <code>tb_fat_atendimento_individual</code></p>
+          <p class="metric">{{ m.atendimentos_analitico_cbo }}</p>
+          <p class="hint">
+            Tabela <code>tb_fat_atendimento_individual</code> •
+            {% if m.cbo_associado %}
+              Profissional CBO <code>{{ m.cbo_associado }}</code>
+              {% if m.nome_cbo_associado %}({{ m.nome_cbo_associado }}){% endif %}
+            {% else %}
+              Todas as fichas individuais
+            {% endif %}
+          </p>
         </article>
       </section>
     {% endif %}
