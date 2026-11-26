@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>e-SUS PEC — Encaminhamentos e Atendimentos</title>
+  <style>
+    :root {
+      --bg: #f4f7f9;
+      --card: #ffffff;
+      --primary: #0f4c81;
+      --border: #dce3ea;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --danger-bg: #fef2f2;
+      --danger-text: #991b1b;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 1020px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      margin: 0 0 0.35rem 0;
+      color: var(--primary);
+      font-size: 1.6rem;
+    }
+    p.subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .filter-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: end;
+    }
+    .field {
+      flex: 1 1 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    label {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    select, button {
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+    select {
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    button {
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .alert {
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      border: 1px solid #fecaca;
+      padding: 0.9rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.25rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .card h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .metric {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 0.25rem 0;
+    }
+    .hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Painel de Encaminhamentos e Atendimentos — e-SUS PEC</h1>
+      <p class="subtitle">
+        Consulta unificada em PostgreSQL 18 (camadas transacional e analítica)
+      </p>
+    </header>
+
+    {% if erro_usuario %}
+      <div class="alert">{{ erro_usuario }}</div>
+    {% endif %}
+
+    {% if painel %}
+      <form class="filter-box" method="get" action="/">
+        <div class="field">
+          <label for="especialidade">Especialidade cadastrada no banco:</label>
+          <select id="especialidade" name="especialidade" onchange="this.form.submit()">
+            <option value="">-- Todas as especialidades (Visão Geral) --</option>
+            {% for item in painel.especialidades %}
+              <option
+                value="{{ item.chave_filtro }}"
+                {% if painel.selecionada and painel.selecionada.chave_filtro == item.chave_filtro %}selected{% endif %}
+              >
+                {{ item.nome_exibicao }}
+                [{{ item.origem | upper }}{% if item.nu_cbo %} • CBO {{ item.nu_cbo }}{% endif %}]
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit">Consultar</button>
+      </form>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Encaminhamentos (Transacional • SISREG)</h2>
+          <p class="metric">{{ painel.metricas.encaminhamentos_transacional }}</p>
+          <p class="hint">Tabela <code>tb_encaminhamento</code></p>
+        </article>
+
+        <article class="card">
+          <h2>Encaminhamentos para a Especialidade (Analítico)</h2>
+          <p class="metric">{{ painel.metricas.encaminhamentos_analitico_destino }}</p>
+          <p class="hint">Tabela <code>tb_fat_atd_ind_encaminhamentos</code></p>
+        </article>
+
+        <article class="card">
+          <h2>Guias de Encaminhamento (e-SUS Reg)</h2>
+          <p class="metric">{{ painel.metricas.guias_esus_reg }}</p>
+          <p class="hint">Tabela <code>tb_guia_encaminhamento</code></p>
+        </article>
+
+        <article class="card">
+          <h2>Encaminhamentos Emitidos pelo CBO Associado</h2>
+          <p class="metric">{{ painel.metricas.encaminhamentos_emitidos_pelo_cbo }}</p>
+          <p class="hint">
+            {% if painel.metricas.cbo_associado %}
+              Profissionais com CBO <code>{{ painel.metricas.cbo_associado }}</code>
+            {% else %}
+              Disponível quando a especialidade possui CBO vinculado
+            {% endif %}
+          </p>
+        </article>
+
+        <article class="card">
+          <h2>Atendimentos Distintos pelo CBO (Transacional)</h2>
+          <p class="metric">{{ painel.metricas.atendimentos_transacional_cbo }}</p>
+          <p class="hint">Tabela <code>tb_atend_prof</code> (não cancelados e lotação ativa)</p>
+        </article>
+
+        <article class="card">
+          <h2>Fichas de Atendimento Individual (Analítico)</h2>
+          <p class="metric">{{ painel.metricas.atendimentos_analitico_cbo }}</p>
+          <p class="hint">Tabela <code>tb_fat_atendimento_individual</code></p>
+        </article>
+      </section>
+    {% endif %}
+  </div>
+</body>
+</html>
