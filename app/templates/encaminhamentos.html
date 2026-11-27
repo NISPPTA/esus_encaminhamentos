@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>e-SUS PEC — Encaminhamentos e Atendimentos</title>
-  <style>
+  <style nonce="{{ csp_nonce }}">
     :root {
       --bg: #f4f7f9;
       --card: #ffffff;
@@ -86,6 +86,9 @@
       font-weight: 600;
       cursor: pointer;
     }
+    button.btn-print {
+      background: #374151;
+    }
     .alert {
       background: var(--danger-bg);
       color: var(--danger-text);
@@ -100,15 +103,10 @@
       gap: 1rem;
     }
     .card {
-      position: relative;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.25rem;
-      transition: border-color 0.15s ease;
-    }
-    .card:hover {
-      border-color: var(--primary);
     }
     .card h2 {
       margin: 0 0 0.5rem 0;
@@ -128,34 +126,28 @@
       margin: 0;
       line-height: 1.45;
     }
-    .tooltip-balloon {
-      display: none;
-      position: absolute;
-      left: 0.75rem;
-      right: 0.75rem;
-      bottom: calc(100% + 8px);
-      background: #111827;
-      color: #f9fafb;
-      font-size: 0.82rem;
-      line-height: 1.45;
-      padding: 0.75rem 0.9rem;
-      border-radius: 8px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22);
-      z-index: 20;
-      pointer-events: none;
-    }
-    .tooltip-balloon::after {
-      content: "";
-      position: absolute;
-      top: 100%;
-      left: 1.5rem;
-      border-width: 6px;
-      border-style: solid;
-      border-color: #111827 transparent transparent transparent;
-    }
-    .card:hover .tooltip-balloon,
-    .card:focus-within .tooltip-balloon {
-      display: block;
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm;
+      }
+      body {
+        background: #ffffff;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      button.no-print {
+        display: none !important;
+      }
+      .filter-box, .context-banner, .card {
+        box-shadow: none;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
   </style>
 </head>
@@ -169,17 +161,17 @@
     </header>
 
     {% if erro_usuario %}
-      <div class="alert">{{ erro_usuario }}</div>
+      <div class="alert" role="alert">{{ erro_usuario }}</div>
     {% endif %}
 
     {% if painel %}
       {% set m = painel.metricas %}
       {% set sel = painel.selecionada %}
 
-      <form class="filter-box" method="get" action="/">
+      <form id="form-filtro" class="filter-box" method="get" action="/">
         <div class="field">
           <label for="especialidade">Especialidade cadastrada no banco:</label>
-          <select id="especialidade" name="especialidade" onchange="this.form.submit()">
+          <select id="especialidade" name="especialidade">
             <option value="">-- Todas as especialidades (Visão Geral) --</option>
             {% for item in painel.especialidades %}
               <option
@@ -192,7 +184,8 @@
             {% endfor %}
           </select>
         </div>
-        <button type="submit">Consultar</button>
+        <button class="no-print" type="submit">Consultar</button>
+        <button id="btn-imprimir" class="btn-print no-print" type="button">Imprimir</button>
       </form>
 
       <div class="context-banner">
@@ -211,17 +204,7 @@
       </div>
 
       <section class="grid">
-        <article
-          class="card"
-          tabindex="0"
-          title="Encaminhamentos transacionais (tb_encaminhamento) encaminhados para {{ m.nome_especialidade_alvo }}."
-        >
-          <div class="tooltip-balloon">
-            <strong>Legenda:</strong> conta <code>co_seq_encaminhamento</code> distintos em
-            <code>tb_encaminhamento</code> com <code>LEFT JOIN</code> em
-            <code>tb_especialidade_sisreg</code> para encaminhamento direcionado a
-            <strong>{{ m.nome_especialidade_alvo }}</strong>.
-          </div>
+        <article class="card">
           <h2>Encaminhamento para {{ m.nome_especialidade_alvo }} (Transacional)</h2>
           <p class="metric">{{ m.encaminhamentos_transacional }}</p>
           <p class="hint">
@@ -230,17 +213,7 @@
           </p>
         </article>
 
-        <article
-          class="card"
-          tabindex="0"
-          title="Encaminhamentos analíticos (tb_fat_atd_ind_encaminhamentos) encaminhados para {{ m.nome_especialidade_alvo }}."
-        >
-          <div class="tooltip-balloon">
-            <strong>Legenda:</strong> conta <code>co_seq_fat_atd_ind_encaminham</code> distintos em
-            <code>tb_fat_atd_ind_encaminhamentos</code> com <code>LEFT JOIN</code> em
-            <code>tb_dim_especialidade</code> para especialidade de destino
-            <strong>{{ m.nome_especialidade_alvo }}</strong>.
-          </div>
+        <article class="card">
           <h2>Encaminhado para {{ m.nome_especialidade_alvo }} (Analítico)</h2>
           <p class="metric">{{ m.encaminhamentos_analitico_destino }}</p>
           <p class="hint">
@@ -249,16 +222,7 @@
           </p>
         </article>
 
-        <article
-          class="card"
-          tabindex="0"
-          title="Guias de encaminhamento (tb_guia_encaminhamento) associadas a {{ m.nome_especialidade_alvo }}."
-        >
-          <div class="tooltip-balloon">
-            <strong>Legenda:</strong> conta <code>co_seq_encaminhamento</code> distintos em
-            <code>tb_guia_encaminhamento</code> com <code>LEFT JOIN</code> em
-            <code>tb_especialidades_esus_reg</code> para <strong>{{ m.nome_especialidade_alvo }}</strong>.
-          </div>
+        <article class="card">
           <h2>Guias de Encaminhamento (e-SUS Reg)</h2>
           <p class="metric">{{ m.guias_esus_reg }}</p>
           <p class="hint">
@@ -267,17 +231,7 @@
           </p>
         </article>
 
-        <article
-          class="card"
-          tabindex="0"
-          title="Encaminhamentos emitidos pelo profissional com o CBO associado."
-        >
-          <div class="tooltip-balloon">
-            <strong>Legenda:</strong> conta <code>co_seq_fat_atd_ind_encaminham</code> distintos em
-            <code>tb_fat_atd_ind_encaminhamentos</code> com <code>LEFT JOIN</code> em
-            <code>tb_dim_cbo</code> (<code>co_dim_cbo_1</code> ou <code>co_dim_cbo_guia_encaminhamento</code>)
-            para o profissional do CBO vinculado.
-          </div>
+        <article class="card">
           <h2>Encaminhamentos Emitidos pelo Profissional (CBO)</h2>
           <p class="metric">{{ m.encaminhamentos_emitidos_pelo_cbo }}</p>
           <p class="hint">
@@ -290,16 +244,7 @@
           </p>
         </article>
 
-        <article
-          class="card"
-          tabindex="0"
-          title="Atendimentos distintos na camada transacional ligados ao CBO do profissional."
-        >
-          <div class="tooltip-balloon">
-            <strong>Legenda:</strong> conta <code>co_atend</code> distintos em
-            <code>tb_atend_prof</code> com <code>LEFT JOIN</code> em <code>tb_lotacao</code> para
-            o CBO do profissional, sem filtrar status de cancelamento ou desativação.
-          </div>
+        <article class="card">
           <h2>Atendimentos do Profissional por CBO (Transacional)</h2>
           <p class="metric">{{ m.atendimentos_transacional_cbo }}</p>
           <p class="hint">
@@ -313,17 +258,7 @@
           </p>
         </article>
 
-        <article
-          class="card"
-          tabindex="0"
-          title="Fichas de atendimento individual distintas na camada analítica ligadas ao CBO."
-        >
-          <div class="tooltip-balloon">
-            <strong>Legenda:</strong> conta <code>nu_uuid_ficha</code> distintos em
-            <code>tb_fat_atendimento_individual</code> com <code>LEFT JOIN</code> em
-            <code>tb_dim_cbo</code> (<code>co_dim_cbo_1</code> ou <code>co_dim_cbo_2</code>)
-            para o CBO do profissional.
-          </div>
+        <article class="card">
           <h2>Fichas de Atendimento Individual (Analítico)</h2>
           <p class="metric">{{ m.atendimentos_analitico_cbo }}</p>
           <p class="hint">
@@ -339,5 +274,25 @@
       </section>
     {% endif %}
   </div>
+
+  <script nonce="{{ csp_nonce }}">
+    document.addEventListener("DOMContentLoaded", () => {
+      const selectEspecialidade = document.getElementById("especialidade");
+      const formFiltro = document.getElementById("form-filtro");
+      const btnImprimir = document.getElementById("btn-imprimir");
+
+      if (selectEspecialidade && formFiltro) {
+        selectEspecialidade.addEventListener("change", () => {
+          formFiltro.submit();
+        });
+      }
+
+      if (btnImprimir) {
+        btnImprimir.addEventListener("click", () => {
+          window.print();
+        });
+      }
+    });
+  </script>
 </body>
 </html>
